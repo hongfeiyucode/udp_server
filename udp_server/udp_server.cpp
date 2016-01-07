@@ -55,7 +55,7 @@ int main(int argc, char* argv[])
 		iResult = recvfrom(serSocket, recvbuf, DEFAULT_BUFLEN, 0, (sockaddr *)&remoteAddr, &nAddrLen);
 		if (iResult > 0)
 		{
-			printf("\n-----------------------------\n客户端：Hello 开始传送数据.\n来自客户端IP地址：%s 端口地址：%d \n\n", inet_ntoa(remoteAddr.sin_addr), ntohs(remoteAddr.sin_port));
+			printf("\n-----------------------------\n客户端：Hello 开始传送数据.\n成功连接客户端IP地址：%s 端口地址：%d \n\n", inet_ntoa(remoteAddr.sin_addr), ntohs(remoteAddr.sin_port));
 			DWORD dwThreadID;
 			CreateThread(NULL, NULL, AnewThread, &remoteAddr, 0, &dwThreadID);
 			if(!AnewThread)CloseHandle(AnewThread);
@@ -102,6 +102,7 @@ DWORD WINAPI AnewThread(LPVOID lParam)
 	iResult=sendto(serSocket, sayhello, DEFAULT_BUFLEN, 0, (sockaddr *)&remoteAddr, nAddrLen);
 	if(iResult>0)cout << "服务器：Hello 数据连接已开启，可以发送！" << endl;
 
+	
 	while (true)
 	{
 		FILE *file = NULL;
@@ -118,42 +119,29 @@ DWORD WINAPI AnewThread(LPVOID lParam)
 				if (recvbuf[i] == '\\')pos = i;
 			for (int i = pos + 1; i < strlen(recvbuf); i++)
 				filename[i - pos - 1] = recvbuf[i];
-			cout << strlen(recvbuf) - pos-1;
 			filename[strlen(recvbuf) - pos-1] = '\0';
+			printf("\n-----------------\n数据来自客户端IP地址：%s 端口地址：%d \n\n", inet_ntoa(remoteAddr.sin_addr), ntohs(remoteAddr.sin_port));
 			cout << "文件名为" << filename <<"，新建文件中..."<< endl;
 
-
 		}
 
-		iResult = recvfrom(serSocket, recvbuf, sizeof(char *), 0, (sockaddr *)&remoteAddr, &nAddrLen);
-		if (iResult >0)
-		{
-			invfilelen = *((int *)recvbuf);
-			cout << "数据长度的网络字节序为  " << invfilelen << endl;
-			filelen = ntohl(invfilelen);
-			cout << "数据长度为  " << filelen << endl;
-		}
 		file = fopen(filename, "wb+");
 		if (file == NULL) { cout << "打开文件失败！" << endl; return -1; }
 
-		int torecvlen = filelen;
 		// 持续接收数据，直到对方关闭连接 
 		do
 		{
-			iResult = recvfrom(serSocket, recvbuf, recvbuflen, 0, (sockaddr *)&remoteAddr, &nAddrLen);
+			iResult = recvfrom(serSocket, recvbuf, DEFAULT_BUFLEN, 0, (sockaddr *)&remoteAddr, &nAddrLen);
 
 			if (iResult > 0)
 			{
-				cout << "还有" << torecvlen << "个字节需要接收" << endl;
-				int recvlen = iResult;
-				if (iResult > torecvlen)recvlen = torecvlen;
-				fwrite(recvbuf, 1, recvlen, file);
-				torecvlen -= recvlen;
-				if (torecvlen <= 0)break;
-
-				//情况1：成功接收到数据
-				//printf("接收到数据:  %s(%d)\n", recvbuf, iResult);
-
+				if (!strcmp(recvbuf,"end"))
+				{
+					cout << "文件接收完毕";
+					break;
+				}
+				fwrite(recvbuf, 1, iResult, file);
+				
 			}
 			else if (iResult == 0)
 			{
@@ -171,8 +159,9 @@ DWORD WINAPI AnewThread(LPVOID lParam)
 
 		fclose(file);
 
+		cout << "文件接收成功！" << endl;
 
-		char * sendData = "一个来自服务端的UDP数据包\n";
+		char * sendData = "这是一个来自服务端的UDP数据包\n";
 		sendto(serSocket, sendData, strlen(sendData), 0, (sockaddr *)&remoteAddr, nAddrLen);
 
 	}
